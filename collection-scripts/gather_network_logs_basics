@@ -22,7 +22,7 @@ function gather_multus_data {
 
 function gather_ovn_kubernetes_data_interconnect_mode {
   echo "INFO: Gathering ovn-kubernetes DBs"
-  OVNKUBE_CONTROLLER_PODS=($(oc -n openshift-ovn-kubernetes get pods -l app=ovnkube-node -o=jsonpath='{.items[*].metadata.name}'))
+  OVNKUBE_CONTROLLER_PODS=($(oc -n ovn-kubernetes get pods -l app=ovnkube-node -o=jsonpath='{.items[*].metadata.name}'))
   # collect dbs from each node
   for DB in "n" "s"; do
     if [ "$DB" = "n" ]; then
@@ -34,7 +34,7 @@ function gather_ovn_kubernetes_data_interconnect_mode {
     fi
     for OVNKUBE_CONTROLLER_POD in "${OVNKUBE_CONTROLLER_PODS[@]}"; do
       echo "INFO: Gathering "${DB_NAME}" from "${OVNKUBE_CONTROLLER_POD}"..."
-      oc cp openshift-ovn-kubernetes/"${OVNKUBE_CONTROLLER_POD}":/etc/ovn/ovn"${DB}"b_db.db -c "${CONTAINER}" \
+      oc cp ovn-kubernetes/"${OVNKUBE_CONTROLLER_POD}":/etc/ovn/ovn"${DB}"b_db.db -c "${CONTAINER}" \
         "${NETWORK_LOG_PATH}/${OVNK_DATABASE_STORE_PATH}/${OVNKUBE_CONTROLLER_POD}_${DB}bdb" 2>&1 & PIDSDB+=($!)
     done
   done
@@ -42,7 +42,7 @@ function gather_ovn_kubernetes_data_interconnect_mode {
 
 function gather_ovn_kubernetes_data_legacy_mode {
   echo "INFO: Gathering ovn-kubernetes master data"
-  OVNKUBE_MASTER_PODS=($(oc -n openshift-ovn-kubernetes get pods -l app=ovnkube-master -o=jsonpath='{.items[*].metadata.name}'))
+  OVNKUBE_MASTER_PODS=($(oc -n ovn-kubernetes get pods -l app=ovnkube-master -o=jsonpath='{.items[*].metadata.name}'))
   # collect only leader dbs to reduce result size
   for DB in "n" "s"; do
     if [ "$DB" = "n" ]; then
@@ -58,14 +58,14 @@ function gather_ovn_kubernetes_data_legacy_mode {
     while (( i < 2 * PODS_AMOUNT )) ; do
       OVNKUBE_MASTER_POD=${OVNKUBE_MASTER_PODS[$(( i % PODS_AMOUNT ))]}
       # find leader to copy db
-      RAFT_ROLE=$(oc exec -n openshift-ovn-kubernetes "${OVNKUBE_MASTER_POD}" -c "${CONTAINER}" -- bash -c \
+      RAFT_ROLE=$(oc exec -n ovn-kubernetes "${OVNKUBE_MASTER_POD}" -c "${CONTAINER}" -- bash -c \
         "ovn-appctl -t /var/run/ovn/ovn${DB}b_db.ctl cluster/status ${DB_NAME} 2>&1 | grep \"^Role\"")
       if echo "${RAFT_ROLE}" | grep -q -i leader; then
-        oc cp openshift-ovn-kubernetes/"${OVNKUBE_MASTER_POD}":/etc/ovn/ovn"${DB}"b_db.db -c "${CONTAINER}" \
+        oc cp ovn-kubernetes/"${OVNKUBE_MASTER_POD}":/etc/ovn/ovn"${DB}"b_db.db -c "${CONTAINER}" \
          "${NETWORK_LOG_PATH}/leader_${DB}bdb" 2>&1
         gzip "${NETWORK_LOG_PATH}/leader_${DB}bdb" 2>&1 & PIDS+=($!)
 
-        oc exec -n openshift-ovn-kubernetes "${OVNKUBE_MASTER_POD}" -c "${CONTAINER}" -- bash -c \
+        oc exec -n ovn-kubernetes "${OVNKUBE_MASTER_POD}" -c "${CONTAINER}" -- bash -c \
           "ovn-appctl -t /var/run/ovn/ovn${DB}b_db.ctl cluster/status ${DB_NAME}" > \
           "${NETWORK_LOG_PATH}/leader_ovn${DB}b_status" & PIDS+=($!)
         break
@@ -77,28 +77,28 @@ function gather_ovn_kubernetes_data_legacy_mode {
 
 function gather_ovn_kubernetes_ipsec_data {
   echo "INFO: Gathering ovn-kubernetes IPsec data"
-  OVNKUBE_IPSEC_PODS=($(oc -n openshift-ovn-kubernetes get pods -l app=ovn-ipsec -o=jsonpath='{.items[*].metadata.name}'))
+  OVNKUBE_IPSEC_PODS=($(oc -n ovn-kubernetes get pods -l app=ovn-ipsec -o=jsonpath='{.items[*].metadata.name}'))
   CONTAINER="ovn-ipsec"
   mkdir -p "${NETWORK_LOG_PATH}/${OVNK_IPSEC_PATH}/xfrm" "${NETWORK_LOG_PATH}/${OVNK_IPSEC_PATH}/status" "${NETWORK_LOG_PATH}/${OVNK_IPSEC_PATH}/trafficstatus"
   for OVNKUBE_IPSEC_POD in "${OVNKUBE_IPSEC_PODS[@]}"; do
     if [[ "${OVNKUBE_IPSEC_POD}" == *"containerized"* ]]; then
-      oc cp openshift-ovn-kubernetes/"${OVNKUBE_IPSEC_POD}":/var/log/openvswitch/libreswan.log -c "${CONTAINER}" \
+      oc cp ovn-kubernetes/"${OVNKUBE_IPSEC_POD}":/var/log/openvswitch/libreswan.log -c "${CONTAINER}" \
         "${NETWORK_LOG_PATH}/${OVNK_IPSEC_PATH}/${OVNKUBE_IPSEC_POD}_libreswan.log" 2>&1 & PIDS+=($!)
     fi
-    oc cp openshift-ovn-kubernetes/"${OVNKUBE_IPSEC_POD}":/etc/ipsec.conf -c "${CONTAINER}" \
+    oc cp ovn-kubernetes/"${OVNKUBE_IPSEC_POD}":/etc/ipsec.conf -c "${CONTAINER}" \
       "${NETWORK_LOG_PATH}/${OVNK_IPSEC_PATH}/${OVNKUBE_IPSEC_POD}_ipsec.conf" 2>&1 & PIDS+=($!)
-    oc cp openshift-ovn-kubernetes/"${OVNKUBE_IPSEC_POD}":/etc/ipsec.d -c "${CONTAINER}" \
+    oc cp ovn-kubernetes/"${OVNKUBE_IPSEC_POD}":/etc/ipsec.d -c "${CONTAINER}" \
       "${NETWORK_LOG_PATH}/${OVNK_IPSEC_PATH}/${OVNKUBE_IPSEC_POD}_ipsec.d" 2>&1 & PIDS+=($!)
-    oc exec -n openshift-ovn-kubernetes "${OVNKUBE_IPSEC_POD}" -c "${CONTAINER}" -- bash -c \
+    oc exec -n ovn-kubernetes "${OVNKUBE_IPSEC_POD}" -c "${CONTAINER}" -- bash -c \
       "ip xfrm state" > \
       "${NETWORK_LOG_PATH}/${OVNK_IPSEC_PATH}/xfrm/${OVNKUBE_IPSEC_POD}_state.log" & PIDS+=($!)
-    oc exec -n openshift-ovn-kubernetes "${OVNKUBE_IPSEC_POD}" -c "${CONTAINER}" -- bash -c \
+    oc exec -n ovn-kubernetes "${OVNKUBE_IPSEC_POD}" -c "${CONTAINER}" -- bash -c \
       "ip xfrm policy" > \
       "${NETWORK_LOG_PATH}/${OVNK_IPSEC_PATH}/xfrm/${OVNKUBE_IPSEC_POD}_policy.log" & PIDS+=($!)
-    oc exec -n openshift-ovn-kubernetes "${OVNKUBE_IPSEC_POD}" -c "${CONTAINER}" -- bash -c \
+    oc exec -n ovn-kubernetes "${OVNKUBE_IPSEC_POD}" -c "${CONTAINER}" -- bash -c \
       "ipsec whack --status" > \
       "${NETWORK_LOG_PATH}/${OVNK_IPSEC_PATH}/status/${OVNKUBE_IPSEC_POD}.log" & PIDS+=($!)
-    oc exec -n openshift-ovn-kubernetes "${OVNKUBE_IPSEC_POD}" -c "${CONTAINER}" -- bash -c \
+    oc exec -n ovn-kubernetes "${OVNKUBE_IPSEC_POD}" -c "${CONTAINER}" -- bash -c \
       "ipsec whack --trafficstatus" > \
       "${NETWORK_LOG_PATH}/${OVNK_IPSEC_PATH}/trafficstatus/${OVNKUBE_IPSEC_POD}.log" & PIDS+=($!)
   done
@@ -114,12 +114,13 @@ function gather_ovn_kubernetes_data {
     echo "INFO: LEGACY MODE"
     gather_ovn_kubernetes_data_legacy_mode
   fi
+  # TROZET (FIXME)
   IPSEC_CONFIG=$(oc get networks.operator.openshift.io cluster -o jsonpath='{.spec.defaultNetwork.ovnKubernetesConfig.ipsecConfig}')
   IPSEC_MODE=$(oc get networks.operator.openshift.io cluster -o jsonpath='{.spec.defaultNetwork.ovnKubernetesConfig.ipsecConfig.mode}')
   if [ "$IPSEC_CONFIG" == "{}" ] || [ "$IPSEC_MODE" != "" ] && [ "$IPSEC_MODE" != "Disabled" ]; then
     gather_ovn_kubernetes_ipsec_data
   fi
-  oc adm top pods -n openshift-ovn-kubernetes --containers > "${NETWORK_LOG_PATH}"/ovn_kubernetes_top_pods & PIDS+=($!)
+  oc adm top pods -n ovn-kubernetes --containers > "${NETWORK_LOG_PATH}"/ovn_kubernetes_top_pods & PIDS+=($!)
 }
 
 function gather_scale_data {
@@ -140,15 +141,11 @@ NETWORK_TYPE=$(oc get network.config.openshift.io -o=jsonpath='{.items[0].spec.n
 gather_multus_data
 gather_scale_data
 
-if [[ "${NETWORK_TYPE}" == "ovnkubernetes" ]]; then
-    oc adm inspect ${log_collection_args} --dest-dir must-gather egressips.k8s.ovn.org
-    oc adm inspect ${log_collection_args} --dest-dir must-gather clusteruserdefinednetworks.k8s.ovn.org
-    oc adm inspect ${log_collection_args} --dest-dir must-gather adminnetworkpolicies.policy.networking.k8s.io
-    oc adm inspect ${log_collection_args} --dest-dir must-gather baselineadminnetworkpolicies.policy.networking.k8s.io
-    gather_ovn_kubernetes_data
-elif [[ "${NETWORK_TYPE}" == "openshiftsdn" ]]; then
-    oc adm inspect ${log_collection_args} --dest-dir must-gather hostsubnets.network.openshift.io
-fi
+oc adm inspect ${log_collection_args} --dest-dir must-gather egressips.k8s.ovn.org
+oc adm inspect ${log_collection_args} --dest-dir must-gather clusteruserdefinednetworks.k8s.ovn.org
+oc adm inspect ${log_collection_args} --dest-dir must-gather adminnetworkpolicies.policy.networking.k8s.io
+oc adm inspect ${log_collection_args} --dest-dir must-gather baselineadminnetworkpolicies.policy.networking.k8s.io
+gather_ovn_kubernetes_data
 
 CNCC_DEPLOYMENT=$(oc get deployment -n openshift-cloud-network-config-controller --no-headers -o custom-columns=":metadata.name")
 if [[ "${CNCC_DEPLOYMENT}" == "cloud-network-config-controller" ]]; then
@@ -161,13 +158,12 @@ if [[ "${ROUTE_ADVERTISEMENTS}" == "Enabled" ]]; then
 fi
 
 echo "INFO: Waiting for network log collection to complete ..."
-if [[ "${NETWORK_TYPE}" == "ovnkubernetes" ]]; then
-    echo "INFO: Waiting for ovnk database copies to complete ..."
-    wait "${PIDSDB[@]}"
-    echo "INFO: Copying ovnk databases complete."
-    du -sh "${NETWORK_LOG_PATH}/${OVNK_DATABASE_STORE_PATH}"
-    tar -zcvf "${NETWORK_LOG_PATH}/${OVNK_DATABASE_STORE_PATH}.tar.gz" -C "${NETWORK_LOG_PATH}" "${OVNK_DATABASE_STORE_PATH}" --remove-files 2>&1 & PIDS+=($!)
-fi
+echo "INFO: Waiting for ovnk database copies to complete ..."
+wait "${PIDSDB[@]}"
+echo "INFO: Copying ovnk databases complete."
+du -sh "${NETWORK_LOG_PATH}/${OVNK_DATABASE_STORE_PATH}"
+tar -zcvf "${NETWORK_LOG_PATH}/${OVNK_DATABASE_STORE_PATH}.tar.gz" -C "${NETWORK_LOG_PATH}" "${OVNK_DATABASE_STORE_PATH}" --remove-files 2>&1 & PIDS+=($!)
+
 wait "${PIDS[@]}"
 echo "INFO: Network log collection complete."
 

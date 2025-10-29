@@ -1,0 +1,20 @@
+# Dockerfile.fedora (UBI9-minimal base)
+FROM registry.access.redhat.com/ubi9/ubi-minimal
+
+# Install needed tools
+RUN microdnf install -y jq rsync hostname tar gzip findutils && \
+    microdnf clean all
+
+COPY oc /usr/bin/
+# Copy gather scripts
+COPY collection-scripts/* /usr/bin/
+RUN chmod +x /usr/bin/*
+
+# Create writable output dir (host bind mount will overlay it, but this helps defaults/tests)
+RUN mkdir -p /must-gather && chmod 777 /must-gather
+
+# Stay root (least friction for must-gather scripts)
+USER 0
+WORKDIR /must-gather
+
+ENTRYPOINT ["/usr/bin/gather"]
