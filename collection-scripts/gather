@@ -21,8 +21,8 @@ group_resources=()
 all_ns_resources=()
 
 # Cluster Version Information
-named_resources+=(ns/openshift-cluster-version)
-group_resources+=(clusterversion)
+#named_resources+=(ns/openshift-cluster-version)
+#group_resources+=(clusterversion)
 
 # Operator and APIService Resources
 group_resources+=(clusteroperators apiservices)
@@ -34,17 +34,18 @@ group_resources+=(certificatesigningrequests)
 group_resources+=(nodes)
 
 # Namespaces/Project Resources
-named_resources+=(ns/default ns/openshift ns/kube-system ns/openshift-etcd)
+#named_resources+=(ns/default ns/openshift ns/kube-system ns/openshift-etcd)
+named_resources+=(ns/default ns/ovn-kubernetes ns/kube-system)
 
 # Storage Resources
 group_resources+=(storageclasses persistentvolumes volumeattachments csidrivers csinodes volumesnapshotclasses volumesnapshotcontents clustercsidrivers)
 all_ns_resources+=(csistoragecapacities)
 
 # Image-source Resources
-group_resources+=(imagecontentsourcepolicies.operator.openshift.io)
+#group_resources+=(imagecontentsourcepolicies.operator.openshift.io)
 
 # Networking Resources
-group_resources+=(networks.operator.openshift.io)
+#group_resources+=(networks.operator.openshift.io)
 
 # NodeNetworkState
 resources+=(nodenetworkstates nodenetworkconfigurationenactments nodenetworkconfigurationpolicies)

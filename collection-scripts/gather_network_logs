@@ -11,7 +11,7 @@ mkdir -p "${NETWORK_LOG_PATH}"/
 
 function gather_extra_ovn_kubernetes_data_interconnect_mode {
   echo "INFO: Gathering ovn-kubernetes extra logs"
-  OVNKUBE_CONTROLLER_PODS=($(oc -n openshift-ovn-kubernetes get pods -l app=ovnkube-node -o=jsonpath='{.items[*].metadata.name}'))
+  OVNKUBE_CONTROLLER_PODS=($(oc -n ovn-kubernetes get pods -l app=ovnkube-node -o=jsonpath='{.items[*].metadata.name}'))
   # collect additional ovnkube logs from each ovnkube-node
   CONTAINER="ovnkube-controller"
   for OVNKUBE_CONTROLLER_POD in "${OVNKUBE_CONTROLLER_PODS[@]}"; do
@@ -24,7 +24,7 @@ function gather_extra_ovn_kubernetes_data_interconnect_mode {
     # This tarball is then untarred while stripping the top 3 directories (var, log, ovnkube),
     # and the contents are placed into the destination directory for the specified pod and container.
     # All of this is done in the background.
-    oc exec -n openshift-ovn-kubernetes -c ${CONTAINER} ${OVNKUBE_CONTROLLER_POD} -- \
+    oc exec -n ovn-kubernetes -c ${CONTAINER} ${OVNKUBE_CONTROLLER_POD} -- \
        bash -c 'find /var/log/ovnkube -type f -name "libovsdb*log*" | tar czf - -T -' | \
         tar xzf - -C ${DEST_DIR} --strip-components=3 2>&1 & PIDS+=($!)
   done
@@ -40,11 +40,6 @@ function gather_extra_ovn_kubernetes_data {
 }
 
 PIDS=()
-NETWORK_TYPE=$(oc get network.config.openshift.io -o=jsonpath='{.items[0].spec.networkType}' | tr '[:upper:]' '[:lower:]')
-
-if [[ "${NETWORK_TYPE}" != "ovnkubernetes" ]]; then
-    exit 0
-fi
 
 gather_extra_ovn_kubernetes_data
 echo "INFO: Waiting for ovnk extra logs copies to complete ..."
