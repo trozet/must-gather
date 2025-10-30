@@ -42,15 +42,15 @@ function gather_ovn_kubernetes_data_interconnect_mode {
 
 function gather_ovn_kubernetes_data_legacy_mode {
   echo "INFO: Gathering ovn-kubernetes master data"
-  OVNKUBE_MASTER_PODS=($(oc -n ovn-kubernetes get pods -l app=ovnkube-master -o=jsonpath='{.items[*].metadata.name}'))
+  OVNKUBE_MASTER_PODS=($(oc -n ovn-kubernetes get pods -l name=ovnkube-db -o=jsonpath='{.items[*].metadata.name}'))
   # collect only leader dbs to reduce result size
   for DB in "n" "s"; do
     if [ "$DB" = "n" ]; then
       DB_NAME="OVN_Northbound"
-      CONTAINER="nbdb"
+      CONTAINER="nb-ovsdb"
     else
       DB_NAME="OVN_Southbound"
-      CONTAINER="sbdb"
+      CONTAINER="sb-ovsdb"
     fi
     i=0
     PODS_AMOUNT=${#OVNKUBE_MASTER_PODS[@]}
@@ -114,7 +114,7 @@ function gather_ovn_kubernetes_data {
     echo "INFO: LEGACY MODE"
     gather_ovn_kubernetes_data_legacy_mode
   fi
-  # TROZET (FIXME)
+  # FIXME(trozet)
   IPSEC_CONFIG=$(oc get networks.operator.openshift.io cluster -o jsonpath='{.spec.defaultNetwork.ovnKubernetesConfig.ipsecConfig}')
   IPSEC_MODE=$(oc get networks.operator.openshift.io cluster -o jsonpath='{.spec.defaultNetwork.ovnKubernetesConfig.ipsecConfig.mode}')
   if [ "$IPSEC_CONFIG" == "{}" ] || [ "$IPSEC_MODE" != "" ] && [ "$IPSEC_MODE" != "Disabled" ]; then
@@ -132,6 +132,15 @@ function gather_scale_data {
   if [[ "${NETWORK_TYPE}" == "ovnkubernetes" ]]; then
     echo egress firewalls amount: $(oc get egressfirewalls --no-headers -A | wc -l) >> "${NETWORK_LOG_PATH}"/cluster_scale & PIDS+=($!)
   fi
+}
+
+function safe_wait {
+  local p
+  for p in "$@"; do
+    if kill -0 "$p" 2>/dev/null; then
+      wait "$p" 2>/dev/null || true
+    fi
+  done
 }
 
 PIDS=()
@@ -159,12 +168,17 @@ fi
 
 echo "INFO: Waiting for network log collection to complete ..."
 echo "INFO: Waiting for ovnk database copies to complete ..."
-wait "${PIDSDB[@]}"
+safe_wait "${PIDSDB[@]}"
 echo "INFO: Copying ovnk databases complete."
-du -sh "${NETWORK_LOG_PATH}/${OVNK_DATABASE_STORE_PATH}"
-tar -zcvf "${NETWORK_LOG_PATH}/${OVNK_DATABASE_STORE_PATH}.tar.gz" -C "${NETWORK_LOG_PATH}" "${OVNK_DATABASE_STORE_PATH}" --remove-files 2>&1 & PIDS+=($!)
-
-wait "${PIDS[@]}"
+# Only archive ovnk_database_store if it exists (interconnect mode)
+if [ -d "${NETWORK_LOG_PATH}/${OVNK_DATABASE_STORE_PATH}" ]; then
+    du -sh "${NETWORK_LOG_PATH}/${OVNK_DATABASE_STORE_PATH}"
+    tar -zcvf "${NETWORK_LOG_PATH}/${OVNK_DATABASE_STORE_PATH}.tar.gz" \
+        -C "${NETWORK_LOG_PATH}" "${OVNK_DATABASE_STORE_PATH}" --remove-files 2>&1 & PIDS+=($!)
+else
+    echo "INFO: No ovnk_database_store found (legacy mode), skipping database archive."
+fi
+safe_wait "${PIDS[@]}"
 echo "INFO: Network log collection complete."
 
 # force disk flush to ensure that all data gathered is accessible in the copy container

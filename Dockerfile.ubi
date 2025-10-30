@@ -2,7 +2,7 @@
 FROM registry.access.redhat.com/ubi9/ubi-minimal
 
 # Install needed tools
-RUN microdnf install -y jq rsync hostname tar gzip findutils && \
+RUN microdnf install -y jq rsync hostname tar gzip findutils pciutils util-linux ethtool systemd systemd-libs util-linux && \
     microdnf clean all
 
 COPY oc /usr/bin/

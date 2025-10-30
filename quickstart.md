@@ -71,6 +71,8 @@ trozet@yard73:~/go/src/github.com/must-gather$ omg logs -n ovn-kubernetes ovs-no
 2025-10-29T16:37:11.705568979Z 2025-10-29T16:37:11.705Z|84233|connmgr|INFO|breth0<->unix#40185: 1 flow_mods in the last 0 s (1 adds)
 ```
 
+### Getting OVN Databases and other information
+
 To access OVN databases, go to './must-gather-output/must-gather/network_logs':
 
 ```bash
@@ -90,3 +92,10 @@ services amount: 2
 pods amount: 18
 ```
 
+You can also see journal logs pulled off of nodes as well. To do this look in the must-gather/nodes directory:
+
+```bash
+trozet@yard73:/tmp/must-gather-output/must-gather/nodes/ovn-worker$ ls
+dmesg  ethtool_channels  ethtool_features  lscpu  lspci  ovn-worker_logs_kubelet.gz  ovn-worker_logs_ovsdb-server.gz  ovn-worker_logs_ovs-vswitchd.gz  proc_cmdline
+
+```

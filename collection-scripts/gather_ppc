@@ -42,17 +42,17 @@ function ppc_nodes() {
 
   # Find the NTO image reference
   # NTO contains all the tools needed here
-  NTO=$(oc get deployment -n openshift-cluster-node-tuning-operator cluster-node-tuning-operator -o jsonpath="{.spec.template.spec.containers[0].image}")
-  if [ $? -ne 0 ]; then
-    echo "INFO: Fallback to identify the container image from release info"
-    NTO=$(oc adm release info --image-for=cluster-node-tuning-operator)
-    if [ $? -ne 0 ]; then
-      echo "ERROR: Failed to identify the container image with node tools."
-      echo "INFO: Node performance data collection will not contain node level data."
-      return
-    fi
-  fi
-
+  #NTO=$(oc get deployment -n openshift-cluster-node-tuning-operator cluster-node-tuning-operator -o jsonpath="{.spec.template.spec.containers[0].image}")
+  #if [ $? -ne 0 ]; then
+  #  echo "INFO: Fallback to identify the container image from release info"
+  #  NTO=$(oc adm release info --image-for=cluster-node-tuning-operator)
+  #  if [ $? -ne 0 ]; then
+  #    echo "ERROR: Failed to identify the container image with node tools."
+  #    echo "INFO: Node performance data collection will not contain node level data."
+  #    return
+  #  fi
+  # fi
+  NTO=docker.io/aussie4005/must-gather:ubi
   echo "INFO: Image with low level tools to use: ${NTO}"
 
   # Start the collection daemon set
@@ -111,6 +111,12 @@ spec:
           # writable so we can request current status
           - name: podres
             mountPath: /host/podresources
+          - name: run-log
+            mountPath: /run/log/journal
+            readOnly: true
+          - name: var-log-journal
+            mountPath: /var/log/journal
+            readOnly: true
       volumes:
       - name: sys
         hostPath:
@@ -128,6 +134,15 @@ spec:
         hostPath:
           path: /var/lib/kubelet/pod-resources
           type: Directory
+      - name: run-log
+        hostPath:
+          path: /run/log/journal
+          type: DirectoryOrCreate
+      - name: var-log-journal
+        hostPath:
+          path: /var/log/journal
+          type: DirectoryOrCreate
+
       tolerations: 
         - operator: Exists
 EOF
@@ -162,14 +177,26 @@ EOF
   wait "${NODE_PIDS[@]}"
 
   # Collect journal logs for specified units for all nodes
-  NODE_UNITS=(kubelet)
+  NODE_UNITS=(kubelet ovs-vswitchd ovsdb-server)
   ADM_PIDS=()
+
   for NODE in ${COLLECTABLE_NODES[@]}; do
       NODE_PATH=${NODES_PATH}/$NODE
       mkdir -p ${NODE_PATH}
+
+      POD=$(oc get pod -n ${NAMESPACE} -l name=perf-node-gather-daemonset \
+            -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name --no-headers | \
+            awk -v n="$NODE" '$1==n{print $2}')
+
       for UNIT in ${NODE_UNITS[@]}; do
-          echo "Collecting ${UNIT} logs for node ${NODE}"
-          timeout -k 5m 30m bash -c "oc adm node-logs \"${node_log_collection_args:---since=-8h}\" $NODE -u $UNIT | gzip" > ${NODE_PATH}/${NODE}_logs_$UNIT.gz &
+          echo "Collecting ${UNIT} logs for node ${NODE} using pod ${POD}"
+
+          # Try journalctl first
+          timeout -k 5m 30m \
+            oc exec -n ${NAMESPACE} ${POD} -- \
+              bash -c "journalctl --directory=/var/log/journal --directory=/run/log/journal -u ${UNIT} --since=-8h" \
+            | gzip > ${NODE_PATH}/${NODE}_logs_${UNIT}.gz &
+
           ADM_PIDS+=($!)
       done
   done
