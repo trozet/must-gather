@@ -1,4 +1,20 @@
-### Getting Started
+## Getting Started
+
+### Running directly from host
+
+To run without a container image you need to install the OpenShift client (oc) utility on your host.
+Download the oc client (openshift-client-*) via:
+https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest/
+
+Install the client to your PATH. Ensure your env KUBECONFIG is set correctly and you have access
+to your cluster via kubectl.
+
+Now execute must-gather. You may optionally provide a destination directory, otherwise one will be
+created for you in the current directory:
+
+oc adm must-gather --image=docker.io/aussie4005/must-gather:ubi --dest-dir=/must-gather
+
+### Using container image with Docker
 
 Ensure you have docker installed on your host and KUBECONFIG env variable is set to the file location for
 your cluster's kubeconfig.
@@ -6,6 +22,8 @@ your cluster's kubeconfig.
 Now run ./run-must-gather.sh
 
 A must-gather will be pulled from your cluster and stored in ./must-gather-output
+
+### Examining the must-gather
 
 Now to access the cluster as if you were on it, install this tool:
 
